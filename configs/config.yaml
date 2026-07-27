@@ -1,0 +1,21 @@
+defaults:
+  - physics: kolmogorov_128
+  - data: default
+  - da: default
+  - model: fno
+  - _self_
+
+seed: 0
+
+paths:
+  # relative to the process cwd -- safe because hydra.job.chdir is false, and this
+  # also lets the config be composed via Hydra's plain Compose API (used in tests),
+  # which does not populate the ${hydra:...} resolver namespace.
+  output_dir: data
+  model_dir: checkpoints
+
+hydra:
+  run:
+    dir: outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}
+  job:
+    chdir: false

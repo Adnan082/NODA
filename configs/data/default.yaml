@@ -1,0 +1,21 @@
+output_dir: ${paths.output_dir}
+burn_in_steps: 2000
+substeps_per_save: 20
+num_steps: 500
+
+splits:
+  train:
+    num_trajectories: 20
+  val:
+    num_trajectories: 4
+  test:
+    num_trajectories: 4
+  ood:
+    num_trajectories: 4
+    overrides:
+      physics:
+        reynolds_number: 4000.0  # placeholder OOD regime shift -- confirm before Exp 4
+
+sensors:
+  num_sensors: 200
+  mask_path: ${paths.output_dir}/sensor_mask.npz

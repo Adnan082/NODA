@@ -1,0 +1,10 @@
+# 2D forced incompressible Navier-Stokes, vorticity form, periodic 128x128 domain,
+# Kolmogorov forcing. Values below are placeholders -- not scientifically tuned by
+# an actual run yet; retune here without touching code.
+grid_size: 128
+domain_size: 6.283185307179586  # 2*pi
+reynolds_number: 1000.0
+forcing_wavenumber: 4
+linear_drag: 0.1
+dt: 7.0e-4
+smooth: true

@@ -1,0 +1,14 @@
+defaults:
+  - forward_model: numerical
+  - _self_
+
+n_ens: 50
+assimilation_interval_substeps: ${data.substeps_per_save}
+obs_noise_std: 0.1
+
+inflation:
+  method: multiplicative
+  factor: 1.0  # tuned Day 3 on A_numerical only, then held fixed across configs
+
+localization:
+  radius: 8  # grid cells; tuned Day 3 on A_numerical only, then reused
