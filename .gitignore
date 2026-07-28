@@ -16,3 +16,8 @@ checkpoints/**
 outputs/
 multirun/
 wandb/
+
+# AWS training infra: local secrets/state, never committed
+infra/aws/*.pem
+infra/aws/.data_bucket_name
+infra/aws/.instance_id
