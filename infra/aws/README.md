@@ -49,8 +49,8 @@ infra/aws/upload_data.sh          # runs `make data` locally, uploads to S3
 infra/aws/provision.sh            # prints an ssh command and a bootstrap command
 
 # 3. Bootstrap the instance (as printed by provision.sh)
-scp -i infra/aws/noda-training-key.pem infra/aws/bootstrap_remote.sh ubuntu@<ip>:~
-ssh -i infra/aws/noda-training-key.pem ubuntu@<ip> "DATA_BUCKET=<bucket> bash bootstrap_remote.sh"
+scp -i ~/.ssh/noda-training-key.pem infra/aws/bootstrap_remote.sh ubuntu@<ip>:~
+ssh -i ~/.ssh/noda-training-key.pem ubuntu@<ip> "DATA_BUCKET=<bucket> bash bootstrap_remote.sh"
 
 # 4. Do the actual training work over SSH ...
 

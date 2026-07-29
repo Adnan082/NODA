@@ -21,6 +21,7 @@ class KeyPurpose:
     SENSORS = 1000
     MODEL_INIT = 2000
     ENKF_OBS_NOISE = 3000
+    TRAIN_BATCH = 4000
 
 
 def derive_key(base_seed: int, purpose: int, index: int = 0) -> PRNGKeyArray:

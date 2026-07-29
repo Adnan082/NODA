@@ -1,2 +1,9 @@
-# placeholder -- populated Day 2 (models/fno.py, models/train.py)
+# FNO2d architecture. grid_size is read from physics.grid_size (not duplicated here)
+# by whatever constructs the model, so it can never drift out of sync with the data.
 name: fno
+in_channels: 3    # vorticity + x-coord + y-coord
+width: 32         # latent channel width through the Fourier layers
+modes1: 16        # retained frequency modes, first spectral axis (out of grid_size)
+modes2: 16        # retained frequency modes, second spectral axis
+n_layers: 4
+proj_channels: 128

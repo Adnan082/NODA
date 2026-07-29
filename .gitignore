@@ -13,6 +13,8 @@ data/**
 !data/.gitkeep
 checkpoints/**
 !checkpoints/.gitkeep
+figures/**
+!figures/.gitkeep
 outputs/
 multirun/
 wandb/
