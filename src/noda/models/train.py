@@ -54,13 +54,17 @@ def build_windows(num_traj: int, traj_len: int, window_len: int) -> Float[np.nda
 
 def sample_batch(
     key: PRNGKeyArray,
-    windows: np.ndarray,
+    windows: Float[Array, "M 2"],
     data: Float[Array, "n_traj T H W"],
     batch_size: int,
     window_len: int,
     data_sharding=None,
 ) -> tuple[Float[Array, "B H W"], Float[Array, "B K H W"]]:
     """Sample a batch of (start field, K-step target sequence) pairs.
+
+    `windows` must already be a device array (converted once by the caller, not on
+    every call -- re-uploading a host numpy array to device every step is a real,
+    easy-to-miss source of wasted time that shows up as GPUs idling between steps).
 
     `data_sharding` (from utils.sharding.make_data_parallel_shardings), when given,
     splits the returned batch across every visible device along its leading (batch)
@@ -69,7 +73,7 @@ def sample_batch(
     downstream (train_step, rollout_loss) is unchanged and unaware of device count.
     """
     chosen = jax.random.choice(key, windows.shape[0], shape=(batch_size,), replace=True)
-    chosen_windows = jnp.asarray(windows)[chosen]  # (B, 2)
+    chosen_windows = windows[chosen]  # (B, 2)
 
     def gather_one(traj_idx, start):
         traj = jnp.take(data, traj_idx, axis=0)  # (T, H, W)
@@ -143,8 +147,11 @@ def run(cfg: DictConfig) -> FNO2d:
     n_train, traj_len = train_data.shape[0], train_data.shape[1]
     n_val = val_data.shape[0]
 
-    train_windows = build_windows(n_train, traj_len, cfg.train.rollout_length)
-    val_windows = build_windows(n_val, traj_len, cfg.train.val_rollout_length)
+    # Converted to device arrays ONCE here, not inside sample_batch -- re-uploading a
+    # host numpy array to device on every training step is wasted time that shows up
+    # as GPUs idling between steps rather than actually computing.
+    train_windows = jnp.asarray(build_windows(n_train, traj_len, cfg.train.rollout_length))
+    val_windows = jnp.asarray(build_windows(n_val, traj_len, cfg.train.val_rollout_length))
 
     mesh, data_sharding, replicated_sharding = make_data_parallel_shardings()
     n_devices = mesh.devices.size
