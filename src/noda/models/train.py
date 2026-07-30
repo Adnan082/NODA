@@ -26,6 +26,7 @@ from omegaconf import DictConfig
 from noda.models.fno import FNO2d
 from noda.utils.io import config_hash, git_sha, load_trajectory
 from noda.utils.seed import KeyPurpose, derive_key
+from noda.utils.sharding import make_data_parallel_shardings
 
 
 def load_split(data_dir: pathlib.Path, split: str) -> Float[np.ndarray, "n_traj T H W"]:
@@ -52,9 +53,21 @@ def build_windows(num_traj: int, traj_len: int, window_len: int) -> Float[np.nda
 
 
 def sample_batch(
-    key: PRNGKeyArray, windows: np.ndarray, data: Float[Array, "n_traj T H W"], batch_size: int, window_len: int
+    key: PRNGKeyArray,
+    windows: np.ndarray,
+    data: Float[Array, "n_traj T H W"],
+    batch_size: int,
+    window_len: int,
+    data_sharding=None,
 ) -> tuple[Float[Array, "B H W"], Float[Array, "B K H W"]]:
-    """Sample a batch of (start field, K-step target sequence) pairs."""
+    """Sample a batch of (start field, K-step target sequence) pairs.
+
+    `data_sharding` (from utils.sharding.make_data_parallel_shardings), when given,
+    splits the returned batch across every visible device along its leading (batch)
+    axis -- e.g. a batch of 8 becomes 2 examples per device on a 4-GPU box. This is
+    the ONLY multi-device-specific line in the whole training pipeline; everything
+    downstream (train_step, rollout_loss) is unchanged and unaware of device count.
+    """
     chosen = jax.random.choice(key, windows.shape[0], shape=(batch_size,), replace=True)
     chosen_windows = jnp.asarray(windows)[chosen]  # (B, 2)
 
@@ -63,7 +76,11 @@ def sample_batch(
         return jax.lax.dynamic_slice_in_dim(traj, start, window_len + 1, axis=0)
 
     sequences = jax.vmap(gather_one)(chosen_windows[:, 0], chosen_windows[:, 1])  # (B, K+1, H, W)
-    return sequences[:, 0], sequences[:, 1:]
+    w0_batch, targets_batch = sequences[:, 0], sequences[:, 1:]
+    if data_sharding is not None:
+        w0_batch = jax.device_put(w0_batch, data_sharding)
+        targets_batch = jax.device_put(targets_batch, data_sharding)
+    return w0_batch, targets_batch
 
 
 def rollout_loss(
@@ -129,9 +146,20 @@ def run(cfg: DictConfig) -> FNO2d:
     train_windows = build_windows(n_train, traj_len, cfg.train.rollout_length)
     val_windows = build_windows(n_val, traj_len, cfg.train.val_rollout_length)
 
+    mesh, data_sharding, replicated_sharding = make_data_parallel_shardings()
+    n_devices = mesh.devices.size
+    print(f"[train] {n_devices} device(s) visible: {jax.devices()}")
+    if cfg.train.batch_size % n_devices != 0:
+        raise ValueError(
+            f"train.batch_size={cfg.train.batch_size} must be divisible by the number "
+            f"of visible devices ({n_devices}) so it can be split evenly across them"
+        )
+
     model = build_model(cfg, derive_key(seed, KeyPurpose.MODEL_INIT))
+    model = jax.device_put(model, replicated_sharding)
     optimizer = optax.adam(cfg.train.learning_rate)
     opt_state = optimizer.init(eqx.filter(model, eqx.is_array))
+    opt_state = jax.device_put(opt_state, replicated_sharding)
     train_step = make_train_step(optimizer)
 
     checkpoint_dir = pathlib.Path(cfg.train.checkpoint_dir)
@@ -150,12 +178,16 @@ def run(cfg: DictConfig) -> FNO2d:
 
     for step in range(1, cfg.train.max_steps + 1):
         batch_key = derive_key(seed, KeyPurpose.TRAIN_BATCH, step)
-        w0_batch, targets_batch = sample_batch(batch_key, train_windows, train_data, cfg.train.batch_size, cfg.train.rollout_length)
+        w0_batch, targets_batch = sample_batch(
+            batch_key, train_windows, train_data, cfg.train.batch_size, cfg.train.rollout_length, data_sharding
+        )
         model, opt_state, train_loss = train_step(model, opt_state, w0_batch, targets_batch)
 
         if step % cfg.train.val_every == 0:
             val_key = derive_key(seed, KeyPurpose.VAL, step)
-            w0_val, targets_val = sample_batch(val_key, val_windows, val_data, cfg.train.batch_size, cfg.train.val_rollout_length)
+            w0_val, targets_val = sample_batch(
+                val_key, val_windows, val_data, cfg.train.batch_size, cfg.train.val_rollout_length, data_sharding
+            )
             val_loss = float(evaluate_rollout(model, w0_val, targets_val))
             print(f"[train] step={step} train_loss={float(train_loss):.6f} val_rollout_loss={val_loss:.6f}")
             if use_wandb:
