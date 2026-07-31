@@ -26,6 +26,26 @@ def _complex_normal(key: PRNGKeyArray, shape: tuple[int, ...], scale: float) -> 
     return (real + 1j * imag).astype(jnp.complex64)
 
 
+class PointwiseLinear(eqx.Module):
+    """A 1x1 convolution IS a per-pixel linear layer across channels -- no spatial
+    mixing happens with a 1x1 kernel, so this is implemented directly via einsum
+    (routes through matmul/cuBLAS) rather than eqx.nn.Conv2d (routes through XLA's
+    convolution custom-call, i.e. cuDNN's convolution engine) -- simpler, and avoids
+    depending on cuDNN convolution support this network doesn't actually need.
+    """
+
+    weight: Float[Array, "out_ch in_ch"]
+    bias: Float[Array, "out_ch"]
+
+    def __init__(self, in_channels: int, out_channels: int, *, key: PRNGKeyArray):
+        scale = 1.0 / in_channels**0.5
+        self.weight = scale * jax.random.normal(key, (out_channels, in_channels), dtype=jnp.float32)
+        self.bias = jnp.zeros((out_channels,), dtype=jnp.float32)
+
+    def __call__(self, x: Float[Array, "in_ch H W"]) -> Float[Array, "out_ch H W"]:
+        return jnp.einsum("oi,ihw->ohw", self.weight, x) + self.bias[:, None, None]
+
+
 class SpectralConv2d(eqx.Module):
     """Spectral convolution: FFT, multiply by learned weights on the lowest
     `modes1 x modes2` frequencies only (higher frequencies are noise-like and
@@ -78,13 +98,13 @@ class FourierLayer2d(eqx.Module):
     """
 
     spectral_conv: SpectralConv2d
-    pointwise: eqx.nn.Conv2d
+    pointwise: PointwiseLinear
     activate: bool = eqx.field(static=True)
 
     def __init__(self, channels: int, modes1: int, modes2: int, *, key: PRNGKeyArray, activate: bool = True):
         key1, key2 = jax.random.split(key)
         self.spectral_conv = SpectralConv2d(channels, channels, modes1, modes2, key=key1)
-        self.pointwise = eqx.nn.Conv2d(channels, channels, kernel_size=1, key=key2)
+        self.pointwise = PointwiseLinear(channels, channels, key=key2)
         self.activate = activate
 
     def __call__(self, x: Float[Array, "C H W"]) -> Float[Array, "C H W"]:
@@ -109,10 +129,10 @@ class FNO2d(eqx.Module):
     correction is an easier, more stable target than the whole field from scratch.
     """
 
-    lift: eqx.nn.Conv2d
+    lift: PointwiseLinear
     fourier_layers: tuple[FourierLayer2d, ...]
-    project1: eqx.nn.Conv2d
-    project2: eqx.nn.Conv2d
+    project1: PointwiseLinear
+    project2: PointwiseLinear
     grid_size: int = eqx.field(static=True)
 
     def __init__(
@@ -129,13 +149,13 @@ class FNO2d(eqx.Module):
     ):
         keys = jax.random.split(key, n_layers + 3)
         self.grid_size = grid_size
-        self.lift = eqx.nn.Conv2d(in_channels, width, kernel_size=1, key=keys[0])
+        self.lift = PointwiseLinear(in_channels, width, key=keys[0])
         self.fourier_layers = tuple(
             FourierLayer2d(width, modes1, modes2, key=keys[i + 1], activate=(i < n_layers - 1))
             for i in range(n_layers)
         )
-        self.project1 = eqx.nn.Conv2d(width, proj_channels, kernel_size=1, key=keys[-2])
-        self.project2 = eqx.nn.Conv2d(proj_channels, 1, kernel_size=1, key=keys[-1])
+        self.project1 = PointwiseLinear(width, proj_channels, key=keys[-2])
+        self.project2 = PointwiseLinear(proj_channels, 1, key=keys[-1])
 
     def __call__(self, w: Float[Array, "H W"]) -> Float[Array, "H W"]:
         coords = _coordinate_channels(self.grid_size)
