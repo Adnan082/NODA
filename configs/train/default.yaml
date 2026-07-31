@@ -8,6 +8,10 @@ val_every: 200
 checkpoint_every: 500
 early_stop_patience: 10  # consecutive non-improving validations before stopping
 checkpoint_dir: ${paths.model_dir}
+checkpoint_s3_prefix: null  # e.g. s3://noda-training-data-<account-id>/checkpoints --
+                             # if set, best/latest checkpoints are uploaded here once
+                             # training finishes. Local disk on a terminated EC2
+                             # instance does not survive, so this matters on AWS runs.
 
 wandb:
   enabled: false          # flip on once a W&B account/API key is set up

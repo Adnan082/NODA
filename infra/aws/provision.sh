@@ -60,27 +60,39 @@ else
   echo "[provision] reusing existing key pair $KEY_NAME (expects $KEY_FILE to already exist locally)"
 fi
 
-# --- IAM role: read-only S3 access to the data bucket, via instance profile ---
+# --- IAM role: read/write S3 access to the data bucket, via instance profile ---
+# Read: pulling the training dataset down. Write: pushing trained checkpoints back up
+# BEFORE the instance is terminated -- local disk on a terminated instance is gone for
+# good, so this is not optional.
 ROLE_NAME="noda-training-role"
 PROFILE_NAME="noda-training-profile"
+NEW_ROLE=false
 if ! aws iam get-role --role-name "$ROLE_NAME" >/dev/null 2>&1; then
   aws iam create-role --role-name "$ROLE_NAME" --assume-role-policy-document '{
     "Version": "2012-10-17",
     "Statement": [{"Effect": "Allow", "Principal": {"Service": "ec2.amazonaws.com"}, "Action": "sts:AssumeRole"}]
   }' >/dev/null
-  aws iam put-role-policy --role-name "$ROLE_NAME" --policy-name "noda-s3-read" --policy-document "{
-    \"Version\": \"2012-10-17\",
-    \"Statement\": [
-      {\"Effect\": \"Allow\", \"Action\": [\"s3:GetObject\", \"s3:ListBucket\"],
-       \"Resource\": [\"arn:aws:s3:::${DATA_BUCKET}\", \"arn:aws:s3:::${DATA_BUCKET}/*\"]}
-    ]
-  }" >/dev/null
   aws iam create-instance-profile --instance-profile-name "$PROFILE_NAME" >/dev/null
   aws iam add-role-to-instance-profile --instance-profile-name "$PROFILE_NAME" --role-name "$ROLE_NAME" >/dev/null
-  echo "[provision] created IAM role/instance profile $ROLE_NAME (read-only access to $DATA_BUCKET)"
-  sleep 10  # IAM propagation delay before the instance profile is usable by EC2
+  NEW_ROLE=true
 else
   echo "[provision] reusing existing IAM role $ROLE_NAME"
+fi
+# Always re-applied (not just on first creation) so a policy change here takes effect
+# on the NEXT instance launch even when the role itself already existed -- otherwise
+# this exact class of bug (role silently stuck on a stale, too-narrow policy) recurs.
+aws iam put-role-policy --role-name "$ROLE_NAME" --policy-name "noda-s3-read-write" --policy-document "{
+  \"Version\": \"2012-10-17\",
+  \"Statement\": [
+    {\"Effect\": \"Allow\", \"Action\": [\"s3:GetObject\", \"s3:PutObject\", \"s3:ListBucket\"],
+     \"Resource\": [\"arn:aws:s3:::${DATA_BUCKET}\", \"arn:aws:s3:::${DATA_BUCKET}/*\"]}
+  ]
+}" >/dev/null
+if [ "$NEW_ROLE" = true ]; then
+  echo "[provision] created IAM role/instance profile $ROLE_NAME (read/write access to $DATA_BUCKET)"
+  sleep 10  # IAM propagation delay before the instance profile is usable by EC2
+else
+  echo "[provision] refreshed policy on existing IAM role $ROLE_NAME (read/write access to $DATA_BUCKET)"
 fi
 
 # --- AMI lookup: Deep Learning Base OSS Nvidia Driver AMI (Ubuntu 22.04), driver+CUDA preinstalled ---

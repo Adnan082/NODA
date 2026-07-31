@@ -13,6 +13,7 @@ early-stopped) on a longer rollout than it trains on, for the same reason.
 from __future__ import annotations
 
 import pathlib
+import subprocess
 
 import equinox as eqx
 import hydra
@@ -221,6 +222,17 @@ def run(cfg: DictConfig) -> FNO2d:
 
     eqx.tree_serialise_leaves(latest_path, model)
     print(f"[train] done. best={best_path} latest={latest_path}")
+
+    s3_prefix = cfg.train.get("checkpoint_s3_prefix")
+    if s3_prefix:
+        # Local disk on a terminated EC2 instance does not survive -- this is not
+        # optional cleanup, it's how the trained model actually leaves the instance.
+        s3_prefix = s3_prefix.rstrip("/")
+        print(f"[train] uploading checkpoints to {s3_prefix}/ ...")
+        for path in (best_path, latest_path):
+            subprocess.run(["aws", "s3", "cp", str(path), f"{s3_prefix}/{path.name}"], check=True)
+        print("[train] checkpoint upload done")
+
     return model
 
 
