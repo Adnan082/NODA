@@ -34,9 +34,14 @@ on Spot** (varies by region/availability -- check current pricing before a real
 run). `provision.sh` caps the Spot bid at $2.00/hr by default (`MAX_SPOT_PRICE`).
 S3 storage for the trajectory dataset is a few cents at most.
 
-**Spot can be reclaimed with ~2 minutes' notice.** Don't rely on it for a real
-multi-hour training run until `models/train.py` (Day 2, not written yet)
-checkpoints and can resume -- otherwise a reclaim silently loses all progress.
+**Spot can be reclaimed with ~2 minutes' notice.** `models/train.py` now checkpoints
+periodically and can resume, so this is lower-risk than it was, but a reclaim still
+loses progress since the last checkpoint.
+
+**If Spot keeps failing with `InsufficientInstanceCapacity`** (common for GPU
+instance types, especially on newer/smaller accounts): set `PRICING=on-demand` to
+guarantee capacity at full price instead of continuing to retry the Spot lottery,
+e.g. `PRICING=on-demand bash infra/aws/provision.sh`.
 
 ## Usage order
 

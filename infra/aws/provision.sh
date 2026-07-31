@@ -18,6 +18,8 @@ SG_NAME="${SG_NAME:-noda-training-sg}"
 DATA_BUCKET="${DATA_BUCKET:-$(cat "$SCRIPT_DIR/.data_bucket_name" 2>/dev/null || true)}"
 SELF_TERMINATE_HOURS="${SELF_TERMINATE_HOURS:-6}"
 MAX_SPOT_PRICE="${MAX_SPOT_PRICE:-2.00}"  # USD/hr cap, well above typical g4dn.12xlarge spot price
+PRICING="${PRICING:-spot}"  # "spot" or "on-demand" -- on-demand costs more but guarantees
+                             # capacity instead of risking InsufficientInstanceCapacity
 
 if [ -z "$DATA_BUCKET" ]; then
   echo "[provision] no data bucket configured -- run create_data_bucket.sh and upload_data.sh first" >&2
@@ -94,20 +96,28 @@ shutdown -h +$((SELF_TERMINATE_HOURS * 60))
 "
 USER_DATA_B64="$(printf '%s' "$USER_DATA" | base64 -w0)"
 
-# --- launch as a one-time Spot request ---
+# --- launch: Spot (one-time request) or on-demand, per $PRICING ---
+MARKET_OPTIONS_ARGS=()
+if [ "$PRICING" = "spot" ]; then
+  MARKET_OPTIONS_ARGS=(--instance-market-options "{\"MarketType\":\"spot\",\"SpotOptions\":{\"MaxPrice\":\"$MAX_SPOT_PRICE\",\"SpotInstanceType\":\"one-time\"}}")
+  echo "[provision] pricing=spot (max \$$MAX_SPOT_PRICE/hr)"
+else
+  echo "[provision] pricing=on-demand -- guaranteed capacity, full price, no bid cap"
+fi
+
 INSTANCE_ID="$(aws ec2 run-instances \
   --image-id "$AMI_ID" \
   --instance-type "$INSTANCE_TYPE" \
   --key-name "$KEY_NAME" \
   --security-group-ids "$SG_ID" \
   --iam-instance-profile "Name=$PROFILE_NAME" \
-  --instance-market-options "{\"MarketType\":\"spot\",\"SpotOptions\":{\"MaxPrice\":\"$MAX_SPOT_PRICE\",\"SpotInstanceType\":\"one-time\"}}" \
+  "${MARKET_OPTIONS_ARGS[@]}" \
   --user-data "$USER_DATA_B64" \
   --tag-specifications 'ResourceType=instance,Tags=[{Key=Name,Value=noda-training}]' \
   --block-device-mappings '[{"DeviceName":"/dev/sda1","Ebs":{"VolumeSize":200,"VolumeType":"gp3"}}]' \
   --query 'Instances[0].InstanceId' --output text)"
 
-echo "[provision] requested spot instance $INSTANCE_ID, waiting for it to enter running state ..."
+echo "[provision] requested $PRICING instance $INSTANCE_ID, waiting for it to enter running state ..."
 aws ec2 wait instance-running --instance-ids "$INSTANCE_ID"
 
 PUBLIC_IP="$(aws ec2 describe-instances --instance-ids "$INSTANCE_ID" \
