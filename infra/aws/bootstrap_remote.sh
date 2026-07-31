@@ -10,6 +10,8 @@ set -euo pipefail
 
 DATA_BUCKET="${DATA_BUCKET:?set DATA_BUCKET, e.g. DATA_BUCKET=noda-training-data-123456789012 bash bootstrap_remote.sh}"
 REPO_URL="${REPO_URL:-https://github.com/Adnan082/NODA.git}"
+EXPECTED_GPUS="${EXPECTED_GPUS:-1}"  # 1 for a single-GPU instance (g4dn.xlarge/g5.xlarge
+                                      # etc.), 4 once back on a g4dn.12xlarge/g5.12xlarge
 
 echo "[bootstrap] installing Python 3.11 ..."
 sudo add-apt-repository -y ppa:deadsnakes/ppa
@@ -27,7 +29,10 @@ python3.11 -m venv .venv
 source .venv/bin/activate
 pip install --upgrade pip -q
 pip install -e ".[dev]" -q
-pip install --upgrade "jax[cuda12]" -q
+# Pinned to the exact version tested locally -- an unpinned `jax[cuda12]` install
+# pulls the latest jax (0.10.x at time of writing) and numpy 2.x, which breaks the
+# jax-cfd-compatible versions the rest of the codebase (and its tests) rely on.
+pip install "jax[cuda12]==0.4.38" "numpy<2.0" -q
 
 echo "[bootstrap] verifying GPU visibility ..."
 python -c "
@@ -35,8 +40,8 @@ import jax
 devices = jax.devices()
 print('devices:', devices)
 gpu_count = sum(1 for d in devices if d.platform == 'gpu')
-assert gpu_count == 4, f'expected 4 GPUs, found {gpu_count}'
-print('OK: 4 GPUs visible')
+assert gpu_count == $EXPECTED_GPUS, f'expected $EXPECTED_GPUS GPU(s), found {gpu_count}'
+print(f'OK: {gpu_count} GPU(s) visible')
 "
 
 echo "[bootstrap] pulling training data from s3://$DATA_BUCKET/data/ ..."
