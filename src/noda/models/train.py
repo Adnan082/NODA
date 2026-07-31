@@ -96,6 +96,12 @@ def rollout_loss(
     """
 
     def rollout_one(w0, targets):
+        # Gradient-checkpointed: without this, backprop through the K-step scan keeps
+        # every layer's intermediate activations from all K steps resident in memory
+        # at once. Recomputing the forward pass during the backward pass instead
+        # trades some extra compute for a large memory reduction -- the difference
+        # between OOMing around batch_size=64 and comfortably fitting far more.
+        @jax.checkpoint
         def step(w, target):
             w_next = model(w)
             step_loss = jnp.mean((w_next - target) ** 2)
