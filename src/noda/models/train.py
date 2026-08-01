@@ -252,6 +252,16 @@ def run(cfg: DictConfig) -> FNO2d:
             rollout_length, windows = cfg.train.rollout_length, train_windows_full
         if step == warmup_steps + 1:
             print(f"[train] step={step}: warmup done, switching to {cfg.train.rollout_length}-step rollout training")
+            # Reset early-stopping state at the curriculum switch. Diagnosed on the
+            # first curriculum run: patience_counter had already accumulated most of
+            # its budget from a warmup-phase plateau (the 1-step and 4-step tasks
+            # aren't directly comparable), so the model got only ~3 validation checks
+            # on the REAL objective before patience ran out -- nowhere near enough.
+            # Without this reset, `early_stop_patience` effectively has to cover both
+            # phases combined instead of giving the harder post-switch task its own
+            # fair budget.
+            best_val_loss = float("inf")
+            patience_counter = 0
 
         batch_key = derive_key(seed, KeyPurpose.TRAIN_BATCH, step)
         w0_batch, targets_batch = sample_batch(
