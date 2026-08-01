@@ -73,6 +73,8 @@ def test_run_end_to_end_smoke(tmp_path):
         "model.proj_channels=16",
         "train.rollout_length=2",
         "train.val_rollout_length=4",
+        "train.warmup_steps=3",  # small enough that this tiny run crosses the
+                                  # warmup->full-rollout switch, exercising both paths
         "train.batch_size=2",
         "train.max_steps=10",
         "train.val_every=5",

@@ -53,6 +53,30 @@ def build_windows(num_traj: int, traj_len: int, window_len: int) -> Float[np.nda
     return np.stack([traj_idx, start_idx], axis=1)
 
 
+def _gather_windows(
+    chosen_windows: Float[Array, "B 2"],
+    data: Float[Array, "n_traj T H W"],
+    window_len: int,
+    data_sharding=None,
+) -> tuple[Float[Array, "B H W"], Float[Array, "B K H W"]]:
+    """Given an explicit array of (trajectory_index, start_frame) pairs, gather the
+    corresponding (start field, K-step target sequence) pairs. Shared by sample_batch
+    (random selection, for training) and evaluate_full (a fixed deterministic sweep
+    over every window, for validation) so both build batches identically.
+    """
+
+    def gather_one(traj_idx, start):
+        traj = jnp.take(data, traj_idx, axis=0)  # (T, H, W)
+        return jax.lax.dynamic_slice_in_dim(traj, start, window_len + 1, axis=0)
+
+    sequences = jax.vmap(gather_one)(chosen_windows[:, 0], chosen_windows[:, 1])  # (B, K+1, H, W)
+    w0_batch, targets_batch = sequences[:, 0], sequences[:, 1:]
+    if data_sharding is not None:
+        w0_batch = jax.device_put(w0_batch, data_sharding)
+        targets_batch = jax.device_put(targets_batch, data_sharding)
+    return w0_batch, targets_batch
+
+
 def sample_batch(
     key: PRNGKeyArray,
     windows: Float[Array, "M 2"],
@@ -61,7 +85,8 @@ def sample_batch(
     window_len: int,
     data_sharding=None,
 ) -> tuple[Float[Array, "B H W"], Float[Array, "B K H W"]]:
-    """Sample a batch of (start field, K-step target sequence) pairs.
+    """Sample a RANDOM batch of (start field, K-step target sequence) pairs -- for
+    training, where stochastic minibatches are exactly what's wanted.
 
     `windows` must already be a device array (converted once by the caller, not on
     every call -- re-uploading a host numpy array to device every step is a real,
@@ -74,18 +99,35 @@ def sample_batch(
     downstream (train_step, rollout_loss) is unchanged and unaware of device count.
     """
     chosen = jax.random.choice(key, windows.shape[0], shape=(batch_size,), replace=True)
-    chosen_windows = windows[chosen]  # (B, 2)
+    return _gather_windows(windows[chosen], data, window_len, data_sharding)
 
-    def gather_one(traj_idx, start):
-        traj = jnp.take(data, traj_idx, axis=0)  # (T, H, W)
-        return jax.lax.dynamic_slice_in_dim(traj, start, window_len + 1, axis=0)
 
-    sequences = jax.vmap(gather_one)(chosen_windows[:, 0], chosen_windows[:, 1])  # (B, K+1, H, W)
-    w0_batch, targets_batch = sequences[:, 0], sequences[:, 1:]
-    if data_sharding is not None:
-        w0_batch = jax.device_put(w0_batch, data_sharding)
-        targets_batch = jax.device_put(targets_batch, data_sharding)
-    return w0_batch, targets_batch
+def evaluate_full(
+    model: FNO2d,
+    windows: Float[Array, "M 2"],
+    data: Float[Array, "n_traj T H W"],
+    window_len: int,
+    chunk_size: int,
+) -> float:
+    """Validation loss over EVERY window, not a random sample -- deterministic, same
+    result every call for a given model. A random small sample (what this replaces)
+    re-samples a DIFFERENT subset on every check, so apparent "no improvement" can
+    just be which random windows got picked that time, not the model's real behaviour
+    -- exactly the bug that made early stopping unreliable on the first real run.
+
+    Processed in fixed-size chunks (not one giant batch) to bound memory; the last
+    chunk is padded by wrapping around to the start so every chunk is the same shape
+    (avoids a second JIT compilation for one odd-sized trailing chunk).
+    """
+    n_windows = windows.shape[0]
+    total_loss = 0.0
+    n_chunks = 0
+    for start in range(0, n_windows, chunk_size):
+        idx = (jnp.arange(start, start + chunk_size)) % n_windows  # wrap-pad last chunk
+        w0_batch, targets_batch = _gather_windows(windows[idx], data, window_len)
+        total_loss += float(evaluate_rollout(model, w0_batch, targets_batch))
+        n_chunks += 1
+    return total_loss / n_chunks
 
 
 def rollout_loss(
@@ -157,7 +199,19 @@ def run(cfg: DictConfig) -> FNO2d:
     # Converted to device arrays ONCE here, not inside sample_batch -- re-uploading a
     # host numpy array to device on every training step is wasted time that shows up
     # as GPUs idling between steps rather than actually computing.
-    train_windows = jnp.asarray(build_windows(n_train, traj_len, cfg.train.rollout_length))
+    #
+    # Two window tables: a 1-step warmup table and the full-rollout-length table.
+    # Diagnosed on the first real run: training on the full multi-step rollout from
+    # random initialisation let the model minimise loss by predicting an almost
+    # input-independent near-zero delta every step (compounding error punishes a
+    # confident-but-wrong guess harder than a timid one) -- verified directly:
+    # trained one-step accuracy was statistically tied with just predicting no
+    # change, and predicted/true delta had ~zero spatial correlation. A 1-step-only
+    # warmup removes that escape hatch (no compounding to hide behind at K=1), so the
+    # model is forced to actually condition its output on the input before ever
+    # seeing the harder multi-step objective.
+    train_windows_warmup = jnp.asarray(build_windows(n_train, traj_len, 1))
+    train_windows_full = jnp.asarray(build_windows(n_train, traj_len, cfg.train.rollout_length))
     val_windows = jnp.asarray(build_windows(n_val, traj_len, cfg.train.val_rollout_length))
 
     mesh, data_sharding, replicated_sharding = make_data_parallel_shardings()
@@ -189,20 +243,26 @@ def run(cfg: DictConfig) -> FNO2d:
 
     best_val_loss = float("inf")
     patience_counter = 0
+    warmup_steps = cfg.train.warmup_steps
 
     for step in range(1, cfg.train.max_steps + 1):
+        if step <= warmup_steps:
+            rollout_length, windows = 1, train_windows_warmup
+        else:
+            rollout_length, windows = cfg.train.rollout_length, train_windows_full
+        if step == warmup_steps + 1:
+            print(f"[train] step={step}: warmup done, switching to {cfg.train.rollout_length}-step rollout training")
+
         batch_key = derive_key(seed, KeyPurpose.TRAIN_BATCH, step)
         w0_batch, targets_batch = sample_batch(
-            batch_key, train_windows, train_data, cfg.train.batch_size, cfg.train.rollout_length, data_sharding
+            batch_key, windows, train_data, cfg.train.batch_size, rollout_length, data_sharding
         )
         model, opt_state, train_loss = train_step(model, opt_state, w0_batch, targets_batch)
 
         if step % cfg.train.val_every == 0:
-            val_key = derive_key(seed, KeyPurpose.VAL, step)
-            w0_val, targets_val = sample_batch(
-                val_key, val_windows, val_data, cfg.train.batch_size, cfg.train.val_rollout_length, data_sharding
-            )
-            val_loss = float(evaluate_rollout(model, w0_val, targets_val))
+            # Full deterministic pass over every validation window -- see
+            # evaluate_full's docstring for why this replaced a random small sample.
+            val_loss = evaluate_full(model, val_windows, val_data, cfg.train.val_rollout_length, cfg.train.val_batch_size)
             print(f"[train] step={step} train_loss={float(train_loss):.6f} val_rollout_loss={val_loss:.6f}")
             if use_wandb:
                 wandb.log({"step": step, "train_loss": float(train_loss), "val_rollout_loss": val_loss})

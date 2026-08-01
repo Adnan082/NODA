@@ -1,7 +1,21 @@
 rollout_length: 4        # K: training unrolls the model this many autoregressive steps
 val_rollout_length: 20   # validated on a LONGER rollout than trained on -- early-stop
                           # on rollout stability, not one-step accuracy (CLAUDE.md)
+warmup_steps: 2000       # train on 1-step prediction only for this many steps first,
+                          # THEN switch to the full rollout_length above. Diagnosed as
+                          # necessary on the first real run: training on the full
+                          # multi-step rollout from scratch let the model minimise loss
+                          # by learning to predict an almost input-independent near-zero
+                          # change every step, rather than real dynamics (compounding
+                          # error punishes a confident wrong guess harder than a timid
+                          # one). 1-step training has no compounding to hide behind.
 batch_size: 8
+val_batch_size: 128     # chunk size for the full deterministic validation sweep --
+                          # separate from batch_size (which is tuned for the memory
+                          # limits of a *training* step, backward pass included) since
+                          # evaluation has no backward pass and can afford much bigger
+                          # chunks, meaning far fewer chunks over the whole validation
+                          # set per check.
 learning_rate: 1.0e-3
 max_steps: 20000
 val_every: 200
