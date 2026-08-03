@@ -47,6 +47,13 @@ print(f'OK: {gpu_count} GPU(s) visible')
 echo "[bootstrap] pulling training data from s3://$DATA_BUCKET/data/ ..."
 aws s3 sync "s3://$DATA_BUCKET/data/" data/
 
+echo "[bootstrap] pulling any existing checkpoints from s3://$DATA_BUCKET/checkpoints/ ..."
+# Best-effort: on the very first-ever run none exist yet, which is fine (sync on an
+# empty/missing prefix is a no-op, not an error). Without this, any test or script
+# that loads an already-trained surrogate (e.g. the benchmark/calibration suites)
+# fails on a fresh instance with a plain "file not found" -- found exactly this way.
+aws s3 sync "s3://$DATA_BUCKET/checkpoints/" checkpoints/ || true
+
 echo "[bootstrap] running test suite ..."
 PYTHONPATH=src pytest -q
 
