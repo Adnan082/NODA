@@ -1,9 +1,16 @@
+# K=4, not the originally-planned 5: seed 4's training run converged to a broken
+# checkpoint (zero correlation with true dynamics, worse than a persistence baseline
+# on the full test set) and its training log was unrecoverable (lived only on the
+# now-terminated EC2 instance, never synced to S3) -- diagnosed as likely run-to-run
+# optimization variance rather than a pipeline bug (seeds 1-3 also converged to
+# noticeably weaker checkpoints than seed 0, with no clean pattern relating training
+# duration to outcome). Proceeding with the 4 verified-working seeds rather than
+# spending further AWS time/cost chasing a 5th.
 name: multisurrogate
-num_models: 5
+num_models: 4
 checkpoints:
   - ${paths.model_dir}/fno_seed0_best.eqx
   - ${paths.model_dir}/fno_seed1_best.eqx
   - ${paths.model_dir}/fno_seed2_best.eqx
   - ${paths.model_dir}/fno_seed3_best.eqx
-  - ${paths.model_dir}/fno_seed4_best.eqx
 member_assignment: round_robin

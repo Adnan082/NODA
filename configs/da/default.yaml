@@ -8,7 +8,18 @@ obs_noise_std: 0.1
 
 inflation:
   method: multiplicative
-  factor: 1.0  # tuned Day 3 on A_numerical only, then held fixed across configs
+  factor: 1.0  # tuned Day 3 on A_numerical for RMSE (DA beats no-DA at 70 cycles --
+               # tests/test_enkf.py::test_da_reduces_rmse_vs_no_correction). Day 5
+               # found this same value is substantially overdispersive on the
+               # DIFFERENT criterion of spread-skill (ratio=4.12, should be ~1.0) --
+               # eval/metrics.py's spread_skill_ratio didn't exist yet in Day 3 to
+               # catch this. Rather than change this shared default (which would
+               # silently break the above RMSE test), Experiment 3 uses its OWN
+               # calibration-tuned inflation constant -- see
+               # eval/calibration.py:FIXED_INFLATION_FOR_ABD. CLAUDE.md's rule against
+               # re-tuning inflation "separately per configuration" governs A vs B vs
+               # D WITHIN Experiment 3, not forcing every experiment in the project to
+               # share one value for two different purposes (accuracy vs calibration).
 
 localization:
   radius: 4  # grid cells; tuned Day 3 on A_numerical only, then reused. Verified
