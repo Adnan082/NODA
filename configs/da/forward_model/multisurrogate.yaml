@@ -1,9 +1,9 @@
 name: multisurrogate
 num_models: 5
 checkpoints:
-  - ${paths.model_dir}/fno_seed0.eqx
-  - ${paths.model_dir}/fno_seed1.eqx
-  - ${paths.model_dir}/fno_seed2.eqx
-  - ${paths.model_dir}/fno_seed3.eqx
-  - ${paths.model_dir}/fno_seed4.eqx
+  - ${paths.model_dir}/fno_seed0_best.eqx
+  - ${paths.model_dir}/fno_seed1_best.eqx
+  - ${paths.model_dir}/fno_seed2_best.eqx
+  - ${paths.model_dir}/fno_seed3_best.eqx
+  - ${paths.model_dir}/fno_seed4_best.eqx
 member_assignment: round_robin

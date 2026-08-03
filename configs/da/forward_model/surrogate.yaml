@@ -1,2 +1,2 @@
 name: surrogate
-checkpoint: ${paths.model_dir}/fno_seed0.eqx
+checkpoint: ${paths.model_dir}/fno_seed0_best.eqx
