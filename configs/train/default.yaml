@@ -20,7 +20,15 @@ learning_rate: 1.0e-3
 max_steps: 20000
 val_every: 200
 checkpoint_every: 500
-early_stop_patience: 10  # consecutive non-improving validations before stopping
+early_stop_patience: 25  # consecutive non-improving validations before stopping (5000
+                          # steps at val_every=200). Raised from 10 (2000 steps) after
+                          # Day 5's multi-surrogate retrain: seed 0's own successful run
+                          # needed patience through step ~13000 (best at ~11000) to reach
+                          # its real optimum, and seeds 1-4 (trained with patience=10)
+                          # came out substantially weaker/inconsistent, with wall-clock
+                          # timing suggesting most stopped far earlier than seed 0 did --
+                          # 2000 steps of patience was too tight and too sensitive to
+                          # which run got randomly lucky enough to keep improving early.
 checkpoint_dir: ${paths.model_dir}
 checkpoint_s3_prefix: null  # e.g. s3://noda-training-data-<account-id>/checkpoints --
                              # if set, best/latest checkpoints are uploaded here once
