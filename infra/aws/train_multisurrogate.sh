@@ -1,20 +1,20 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Run ON the training instance, inside the cloned repo (cd noda first). Trains
-# seeds 1-7 sequentially (seed 0 already exists from Day 2) -- 8 independently-
-# seeded FNOs total for Experiment 3's multi-surrogate ensemble, up from the
-# originally-planned 5, for more genuine model-diversity. Each seed uploads its own
-# checkpoint to S3 as soon as it finishes, so a checkpoint is safe even if a later
-# seed in the sequence fails.
+# Run ON a training instance, inside the cloned repo (cd noda first). Trains the
+# given SEEDS sequentially on this instance's single GPU (seed 0 already exists from
+# Day 2) -- part of 8 independently-seeded FNOs total for Experiment 3's
+# multi-surrogate ensemble. Each seed uploads its own checkpoint to S3 as soon as it
+# finishes, so a checkpoint is safe even if a later seed in the sequence fails.
 #
-# Usage: DATA_BUCKET=<bucket-name> bash train_multisurrogate.sh
+# Usage: DATA_BUCKET=<bucket-name> SEEDS="1 3 5 7" bash train_multisurrogate.sh
 #
-# Sequential, not parallel across GPUs: the account's on-demand vCPU quota for the
-# g4dn.12xlarge (4-GPU) family is capped at 4 vCPUs, far below the 48 that instance
-# needs -- RunInstances fails outright with VcpuLimitExceeded, no retry fixes it
-# without a quota increase request. Falling back to a single-GPU instance
-# (g4dn.xlarge, fits the existing quota) and training sequentially instead.
+# SEEDS defaults to all 7 (sequential on one instance) but is meant to be split
+# across TWO separate single-GPU instances running this script concurrently (e.g.
+# SEEDS="1 3 5 7" on one, SEEDS="2 4 6" on the other) -- the account's on-demand
+# vCPU quota for the "G and VT" family only stretches to 8 vCPUs (2 concurrent
+# single-GPU instances at 4 vCPUs each), not enough for a single 4-8 GPU box or 7
+# separate instances at once, so this is the best available parallelism right now.
 #
 # Retrain note (Day 5, second attempt): the first attempt (4 seeds, sequential,
 # early_stop_patience=10) produced one outright-broken checkpoint (seed 4) and three
@@ -25,6 +25,7 @@ set -euo pipefail
 # checkpoints at the end.
 
 DATA_BUCKET="${DATA_BUCKET:?set DATA_BUCKET, e.g. DATA_BUCKET=noda-training-data-123456789012 bash train_multisurrogate.sh}"
+SEEDS="${SEEDS:-1 2 3 4 5 6 7}"
 
 source .venv/bin/activate
 
@@ -41,7 +42,7 @@ mkdir -p "$LOG_DIR"
 LOG_SYNC_PID=$!
 trap 'kill "$LOG_SYNC_PID" 2>/dev/null || true; aws s3 sync "$LOG_DIR" "s3://${DATA_BUCKET}/logs/" >/dev/null 2>&1 || true' EXIT
 
-for seed in 1 2 3 4 5 6 7; do
+for seed in $SEEDS; do
   echo "[train_multisurrogate] ===== starting seed=$seed ====="
   PYTHONUNBUFFERED=1 PYTHONPATH=src python -m noda.models.train \
     seed="$seed" \
@@ -51,4 +52,4 @@ for seed in 1 2 3 4 5 6 7; do
   echo "[train_multisurrogate] ===== finished seed=$seed ====="
 done
 
-echo "[train_multisurrogate] all 7 seeds done (8 models total including seed 0)"
+echo "[train_multisurrogate] done with seeds: $SEEDS"
