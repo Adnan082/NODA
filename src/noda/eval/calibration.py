@@ -12,10 +12,10 @@ Four configurations (CLAUDE.md's table, exact):
                           this substantially overdispersive (spread_skill=4.12).
   B_surrogate_noinfl  -- 1 FNO (seed 0), SAME inflation as A (not re-tuned).
   C_surrogate_infl    -- 1 FNO (seed 0), inflation TUNED for this config specifically.
-  D_multisurrogate    -- 4 FNOs (seeds 0-3), N/4 members each, SAME inflation as A.
-                          Originally planned as 5 (seeds 0-4); seed 4's training run
-                          produced a broken checkpoint (see
-                          configs/da/forward_model/multisurrogate.yaml) and was dropped.
+  D_multisurrogate    -- 5 FNOs (seeds 0,1,2,3,7), N/5 members each, SAME inflation
+                          as A. Originally planned as 8 (seeds 0-7); seeds 4, 5, 6
+                          converged to collapsed, non-functional checkpoints (see
+                          configs/da/forward_model/multisurrogate.yaml) and were dropped.
 
 Per CLAUDE.md's pitfall ("do not tune inflation separately per configuration and
 then compare -- that hides the effect being measured"): A, B, D all use the SAME
@@ -88,9 +88,12 @@ def _forward_model_cfg(cfg: DictConfig, forward_model_dict: dict, n_ens: int) ->
     return fm_cfg
 
 
-NUM_MULTISURROGATE_MODELS = 4  # seeds 0-3, not the originally-planned 5 -- seed 4's
-# training run converged to a broken checkpoint (zero correlation with true dynamics,
-# worse than a persistence baseline) and its log was unrecoverable; see
+MULTISURROGATE_SEEDS = [0, 1, 2, 3, 7]  # not the originally-planned 8 (seeds 0-7) --
+# Day 5's retrain verified all 8 checkpoints via the full-test-set one-step
+# correlation-vs-persistence check; seeds 4, 5, 6 converged to a collapsed
+# "predict near-zero-change" state (correlation ~0, worse than persistence) despite
+# reasonable-looking training-time val_rollout_loss, while 0, 1, 2, 3, 7 are
+# genuinely working (correlation 0.21-0.26). See
 # configs/da/forward_model/multisurrogate.yaml for the full note.
 
 
@@ -102,8 +105,8 @@ def _config_variants(cfg: DictConfig) -> dict:
         "C_surrogate_infl": {"name": "surrogate", "checkpoint": checkpoint0},
         "D_multisurrogate": {
             "name": "multisurrogate",
-            "num_models": NUM_MULTISURROGATE_MODELS,
-            "checkpoints": [f"{cfg.paths.model_dir}/fno_seed{i}_best.eqx" for i in range(NUM_MULTISURROGATE_MODELS)],
+            "num_models": len(MULTISURROGATE_SEEDS),
+            "checkpoints": [f"{cfg.paths.model_dir}/fno_seed{i}_best.eqx" for i in MULTISURROGATE_SEEDS],
             "member_assignment": "round_robin",
         },
     }

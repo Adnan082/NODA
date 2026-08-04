@@ -45,19 +45,19 @@ def test_run_config_numerical_and_surrogate_smoke():
 def test_run_config_multisurrogate_wiring_smoke():
     """Exercises the multisurrogate forward-model path (stacking + round-robin member
     assignment in MultiSurrogateForwardModel, plus the da.n_ens override this needs to
-    line up with) using the one checkpoint available locally repeated 4x. This checks
-    the WIRING works end-to-end, not that 4 independently-seeded networks help --
-    that real comparison needs the actual seeds 1-3 trained separately on AWS and
-    belongs in the full run_experiment3, not this smoke test.
+    line up with) using the one checkpoint available locally repeated 5x. This checks
+    the WIRING works end-to-end, not that 5 independently-seeded networks help --
+    that real comparison needs the actual verified-working seeds trained separately
+    on AWS and belongs in the full run_experiment3, not this smoke test.
     """
     cfg = _cfg()
     variant = {
         "name": "multisurrogate",
-        "num_models": 4,
-        "checkpoints": [str(CHECKPOINT0)] * 4,
+        "num_models": 5,
+        "checkpoints": [str(CHECKPOINT0)] * 5,
         "member_assignment": "round_robin",
     }
-    result = _run_config(cfg, variant, inflation_factor=1.0, n_cycles=2, n_ens=4, seed_offset=3)
+    result = _run_config(cfg, variant, inflation_factor=1.0, n_cycles=2, n_ens=5, seed_offset=3)
     assert result["spread_skill_ratio"] > 0
     assert result["rmse"] > 0
 
