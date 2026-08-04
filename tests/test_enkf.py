@@ -23,6 +23,7 @@ from noda.physics.solver import PhysicsConfig, make_ensemble_advance
 
 GRID = 16
 CONFIG_DIR = str(pathlib.Path(__file__).resolve().parents[1] / "configs")
+TEST_DATA_DIR = pathlib.Path(__file__).resolve().parents[1] / "data" / "test"
 
 
 def _sensor_indices(key, n_sensors, grid=GRID):
@@ -133,7 +134,14 @@ def test_enkf_step_works_with_both_forward_model_kinds():
 def real_da_fixture():
     """Loads the real Day 1 dataset + sensor mask -- these tests need `make data`
     already run (same prerequisite the rest of the project has had since Day 1).
+    Skips (not errors) on a fresh checkout with no generated data -- pytest.mark.skipif
+    doesn't apply to fixtures directly, so the skip has to happen inside the fixture
+    body itself; found while setting up CI: this fixture had no guard at all before,
+    unlike the checkpoint/OOD-data guards tests/test_ood.py already uses for the same
+    kind of prerequisite.
     """
+    if not TEST_DATA_DIR.exists():
+        pytest.skip("requires data/test/ (run `make data` first)")
     with initialize_config_dir(config_dir=CONFIG_DIR, version_base=None):
         cfg = compose(config_name="config")
 

@@ -1,0 +1,27 @@
+.git/
+.venv/
+__pycache__/
+*.pyc
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# generated data / checkpoints / run outputs -- same as .gitignore; the image
+# builds/regenerates its own, never bakes in trained weights or trajectories
+data/**
+!data/.gitkeep
+checkpoints/**
+!checkpoints/.gitkeep
+figures/**
+!figures/.gitkeep
+outputs/
+multirun/
+wandb/
+
+# AWS training infra: local secrets/state, never shipped in an image
+infra/aws/*.pem
+infra/aws/.data_bucket_name
+infra/aws/.instance_id

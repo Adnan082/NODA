@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install
+        run: make setup
+
+      - name: Lint
+        run: make lint
+
+      # Small override, not the full production dataset (2-4 min vs 5-10+) -- just
+      # enough real data for the tests that need `make data` to have run (e.g.
+      # tests/test_enkf.py's real_da_fixture) to actually execute rather than skip.
+      # Checkpoint-dependent tests (trained model weights, never committed -- see
+      # .gitignore) still correctly skip in CI; CI verifies code correctness, not
+      # trained-model quality, which is what the AWS training pipeline is for.
+      - name: Generate small CI dataset
+        run: |
+          PYTHONPATH=src python -m noda.data.generate \
+            data.splits.train.num_trajectories=2 \
+            data.splits.val.num_trajectories=1 \
+            data.splits.test.num_trajectories=1 \
+            data.splits.ood.num_trajectories=1 \
+            data.num_steps=20
+
+      - name: Test
+        run: make test

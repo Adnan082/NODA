@@ -15,5 +15,7 @@ lint:
 	ruff check src tests
 
 bench:
-	@echo "placeholder: will call eval/benchmark.py to regenerate Experiments 1-4 (Day 7)"
-	@echo "Day 1: only 'data' and 'test' are functional."
+	$(PYTHON) -m noda.eval.divergence
+	$(PYTHON) -m noda.eval.benchmark
+	$(PYTHON) -m noda.eval.calibration
+	$(PYTHON) -m noda.eval.ood
