@@ -125,3 +125,21 @@ def nonlinear_term(w_hat: Complex[Array, "H Wh"], kx, ky, k2) -> Complex[Array, 
     adv_x_hat = 1j * kx * jnp.fft.rfft2(u * w)
     adv_y_hat = 1j * ky * jnp.fft.rfft2(v * w)
     return adv_x_hat + adv_y_hat
+
+
+def forcing_hat(cfg: PhysicsConfig) -> Complex[Array, "H Wh"]:
+    """Kolmogorov forcing f = curl(sin(k_f*y) x_hat), in vorticity space -- the
+    SAME forcing jax_cfd's NavierStokes2D applies internally (built the identical
+    way: cfd_forcings.kolmogorov_forcing gives the physical-space forcing velocity
+    field, which gets curled into vorticity space here), but exposed standalone so
+    physics/residual.py can evaluate it without constructing a full solver/equation
+    object. State-independent (Kolmogorov forcing is a fixed function of position),
+    so this can be precomputed once and reused across residual evaluations.
+    """
+    grid = make_grid(cfg)
+    forcing_fn = cfd_forcings.kolmogorov_forcing(grid, k=cfg.forcing_wavenumber)
+    fx, fy = forcing_fn(None)  # kolmogorov_forcing ignores its argument
+    fx_hat = jnp.fft.rfft2(fx.data)
+    fy_hat = jnp.fft.rfft2(fy.data)
+    kx, ky, _ = wavenumbers(cfg)
+    return 1j * kx * fy_hat - 1j * ky * fx_hat

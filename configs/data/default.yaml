@@ -14,7 +14,27 @@ splits:
     num_trajectories: 4
     overrides:
       physics:
-        reynolds_number: 4000.0  # placeholder OOD regime shift -- confirm before Exp 4
+        reynolds_number: 4000.0  # 4x less viscous -- confirmed final (Day 6)
+        forcing_wavenumber: 8    # doubled forcing frequency, on top of the
+                                  # viscosity shift -- Day 6 found the Re-only shift
+                                  # (kept the same forcing pattern) too weak to
+                                  # cleanly separate from the surrogate's own
+                                  # baseline error once routed through it; a direct,
+                                  # no-surrogate check on the Re-only OOD data still
+                                  # showed a real signal (0.20 in-dist vs 0.66 OOD),
+                                  # but too small relative to the noise floor a real
+                                  # surrogate forecast adds on top. Also changing the
+                                  # forcing pattern gives genuinely different
+                                  # turbulent structure, not just a different
+                                  # viscosity coefficient.
+      data:
+        burn_in_steps: 8000  # 4x the base 2000 -- diagnosed directly (not assumed):
+                              # a field visualization of the saved OOD trajectory at
+                              # forcing_wavenumber=8 showed clean, regular laminar
+                              # stripes, not turbulence -- the base burn-in (tuned for
+                              # forcing_wavenumber=4) wasn't long enough to reach a
+                              # statistically steady turbulent state at this higher
+                              # forcing wavenumber before saving began.
 
 sensors:
   num_sensors: 200
