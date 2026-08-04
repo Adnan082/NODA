@@ -191,6 +191,7 @@ def run_experiment3(
 
     _write_table(results, out_dir / "experiment3_table.txt")
     _plot_rank_histograms(results, out_dir / "experiment3_rank_histograms.png")
+    _plot_summary_bars(results, out_dir / "experiment3_summary_bars.png")
     return results
 
 
@@ -216,6 +217,38 @@ def _plot_rank_histograms(results: dict, out_path: pathlib.Path) -> None:
         ax.set_xlabel("rank")
     axes[0].set_ylabel("count")
     fig.suptitle("Experiment 3: rank histograms (flat = calibrated, U-shaped = overconfident)")
+    fig.tight_layout()
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(out_path, dpi=130)
+    plt.close(fig)
+    print(f"[calibration] wrote {out_path}")
+
+
+def _plot_summary_bars(results: dict, out_path: pathlib.Path) -> None:
+    """Spread-skill and RMSE side by side, one bar per config -- the headline
+    figure: is a config both accurate AND honest about it, or does it trade one for
+    the other? (The rank histograms show the same calibration story in more detail,
+    but this is the faster read.)
+    """
+    names = list(results.keys())
+    spread_skill = [results[n]["spread_skill_ratio"] for n in names]
+    rmse = [results[n]["rmse"] for n in names]
+    colors = ["tab:green" if abs(s - 1.0) < 0.05 else "tab:red" for s in spread_skill]
+
+    fig, axes = plt.subplots(1, 2, figsize=(4 * len(names), 5))
+    axes[0].bar(names, spread_skill, color=colors)
+    axes[0].axhline(1.0, color="black", linestyle="--", linewidth=1, label="perfectly calibrated")
+    axes[0].set_ylabel("spread-skill ratio")
+    axes[0].set_title("Calibration (1.0 = honest, <1 = overconfident)")
+    axes[0].tick_params(axis="x", rotation=20)
+    axes[0].legend()
+
+    axes[1].bar(names, rmse, color=colors)
+    axes[1].set_ylabel("RMSE")
+    axes[1].set_title("Accuracy (lower is better)")
+    axes[1].tick_params(axis="x", rotation=20)
+
+    fig.suptitle("Experiment 3 summary: accuracy and calibration, side by side")
     fig.tight_layout()
     out_path.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(out_path, dpi=130)
