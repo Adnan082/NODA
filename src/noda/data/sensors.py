@@ -11,7 +11,7 @@ from jaxtyping import Array, Int, PRNGKeyArray
 
 def generate_sensor_indices(
     key: PRNGKeyArray, grid_shape: tuple[int, int], num_sensors: int
-) -> Int[Array, "M"]:
+) -> Int[Array, "M"]:  # noqa: F821 - jaxtyping shape symbol
     """Uniform, without-replacement selection of `num_sensors` flattened
     (row-major) grid indices. Deterministic: identical (key, grid_shape,
     num_sensors) always produces an identical mask.
@@ -21,7 +21,7 @@ def generate_sensor_indices(
     return jax.numpy.sort(indices)
 
 
-def save_sensor_mask(path, indices: Int[Array, "M"], grid_shape: tuple[int, int], seed: int, config_hash: str) -> None:
+def save_sensor_mask(path, indices: Int[Array, "M"], grid_shape: tuple[int, int], seed: int, config_hash: str) -> None:  # noqa: F821 - jaxtyping shape symbol
     np.savez(
         path,
         indices=np.asarray(indices),
@@ -31,7 +31,7 @@ def save_sensor_mask(path, indices: Int[Array, "M"], grid_shape: tuple[int, int]
     )
 
 
-def load_sensor_mask(path) -> tuple[Int[Array, "M"], dict]:
+def load_sensor_mask(path) -> tuple[Int[Array, "M"], dict]:  # noqa: F821 - jaxtyping shape symbol
     with np.load(path, allow_pickle=False) as d:
         indices = jax.numpy.asarray(d["indices"])
         meta = {
@@ -40,3 +40,4 @@ def load_sensor_mask(path) -> tuple[Int[Array, "M"], dict]:
             "config_hash": str(d["config_hash"]),
         }
     return indices, meta
+

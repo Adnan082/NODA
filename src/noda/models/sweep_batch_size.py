@@ -24,7 +24,13 @@ import jax.numpy as jnp
 import optax
 from omegaconf import DictConfig
 
-from noda.models.train import build_model, build_windows, load_split, make_train_step, sample_batch
+from noda.models.train import (
+    build_model,
+    build_windows,
+    load_split,
+    make_train_step,
+    sample_batch,
+)
 from noda.utils.seed import KeyPurpose, derive_key
 from noda.utils.sharding import make_data_parallel_shardings
 
@@ -110,3 +116,4 @@ def main(cfg: DictConfig) -> None:
 
 if __name__ == "__main__":
     main()
+

@@ -6,7 +6,12 @@ import pytest
 from hydra import compose, initialize_config_dir
 from omegaconf import OmegaConf
 
-from noda.assimilation.enkf import NumericalForwardModel, build_forward_model, make_ensemble_advance, physics_config_from_cfg
+from noda.assimilation.enkf import (
+    NumericalForwardModel,
+    build_forward_model,
+    make_ensemble_advance,
+    physics_config_from_cfg,
+)
 from noda.assimilation.ood import FallbackForwardModel, ensemble_residual
 from noda.eval.ood import run_experiment4
 from noda.models.train import load_split
@@ -122,3 +127,4 @@ def test_run_experiment4_smoke(tmp_path):
     assert (tmp_path / "experiment4_table.txt").exists()
     assert (tmp_path / "experiment4_residual_and_rmse.png").exists()
     assert (tmp_path / "experiment4_roc.png").exists()
+
