@@ -1,3 +1,4 @@
+import math
 import pathlib
 
 import equinox as eqx
@@ -18,7 +19,13 @@ def test_run_experiment2_smoke(tmp_path):
     here versus Day 3's exact known-answer tests.
     """
     with initialize_config_dir(config_dir=CONFIG_DIR, version_base=None):
-        cfg = compose(config_name="config")
+        cfg = compose(
+            config_name="config",
+            overrides=[
+                "model.width=4", "model.modes1=4", "model.modes2=4",
+                "model.n_layers=1", "model.proj_channels=8",
+            ],
+        )
 
     # Exercise real serialisation/loading without requiring an untracked trained
     # checkpoint. Random weights are sufficient for this plumbing smoke test;
@@ -38,7 +45,7 @@ def test_run_experiment2_smoke(tmp_path):
 
     assert set(results["accuracy"].keys()) == {"numerical", "surrogate"}
     for rmse in results["accuracy"].values():
-        assert rmse > 0
+        assert math.isfinite(rmse) and rmse > 0
 
     assert (tmp_path / "experiment2_table.txt").exists()
     assert (tmp_path / "experiment2_cost.png").exists()
