@@ -37,7 +37,13 @@ import jax
 import jax.numpy as jnp
 from jaxtyping import Array, Float
 
-from noda.physics.solver import PhysicsConfig, forcing_hat, laplacian, nonlinear_term, wavenumbers
+from noda.physics.solver import (
+    PhysicsConfig,
+    forcing_hat,
+    laplacian,
+    nonlinear_term,
+    wavenumbers,
+)
 
 
 @contextlib.contextmanager
@@ -111,3 +117,4 @@ def pde_residual_traced(
     this wrong silently breaks the check).
     """
     return _residual_terms(w_t, w_next, cfg, dt)
+

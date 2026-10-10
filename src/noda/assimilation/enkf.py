@@ -66,7 +66,7 @@ class MultiSurrogateForwardModel(eqx.Module):
     """
 
     stacked_models: FNO2d
-    member_to_model: Int[Array, "N"]
+    member_to_model: Int[Array, "N"]  # noqa: F821 - jaxtyping shape symbol
 
     def advance(self, state: Float[Array, "N H W"], key: PRNGKeyArray) -> Float[Array, "N H W"]:
         del key
@@ -140,7 +140,7 @@ def _gaspari_cohn(dist: Float[Array, "..."], c: float) -> Float[Array, "..."]:
 
 
 def build_localization_taper(
-    grid_shape: tuple[int, int], sensor_indices: Int[Array, "M"], radius: float
+    grid_shape: tuple[int, int], sensor_indices: Int[Array, "M"], radius: float  # noqa: F821 - jaxtyping shape symbol
 ) -> Float[Array, "HW M"]:
     """Precomputed once per run: a (H*W, M) taper, elementwise-multiplied onto the
     state-observation cross-covariance before the gain -- suppresses spurious
@@ -165,7 +165,7 @@ def build_localization_taper(
     return _gaspari_cohn(dist, c=radius / 2.0)
 
 
-def build_sensor_taper(grid_shape: tuple[int, int], sensor_indices: Int[Array, "M"], radius: float) -> Float[Array, "M M"]:
+def build_sensor_taper(grid_shape: tuple[int, int], sensor_indices: Int[Array, "M"], radius: float) -> Float[Array, "M M"]:  # noqa: F821 - jaxtyping shape symbol
     """Sensor-to-sensor equivalent of build_localization_taper, applied to H P_f H^T.
 
     Without this, H P_f H^T stays EXACTLY rank <= N-1 (it's built from only N
@@ -198,8 +198,8 @@ def build_sensor_taper(grid_shape: tuple[int, int], sensor_indices: Int[Array, "
 @eqx.filter_jit
 def enkf_analysis(
     forecast: Float[Array, "N H W"],
-    obs: Float[Array, "M"],
-    sensor_indices: Int[Array, "M"],
+    obs: Float[Array, "M"],  # noqa: F821 - jaxtyping shape symbol
+    sensor_indices: Int[Array, "M"],  # noqa: F821 - jaxtyping shape symbol
     obs_noise_std: float,
     inflation_factor: float,
     localization_taper: Float[Array, "HW M"],
@@ -246,9 +246,9 @@ def enkf_analysis(
 @eqx.filter_jit
 def enkf_step(
     state: Float[Array, "N H W"],
-    obs: Float[Array, "M"],
+    obs: Float[Array, "M"],  # noqa: F821 - jaxtyping shape symbol
     forward_model: ForwardModel,
-    sensor_indices: Int[Array, "M"],
+    sensor_indices: Int[Array, "M"],  # noqa: F821 - jaxtyping shape symbol
     obs_noise_std: float,
     inflation_factor: float,
     localization_taper: Float[Array, "HW M"],
@@ -267,7 +267,7 @@ def run_da(
     initial_state: Float[Array, "N H W"],
     obs_sequence: Float[Array, "T M"],
     forward_model: ForwardModel,
-    sensor_indices: Int[Array, "M"],
+    sensor_indices: Int[Array, "M"],  # noqa: F821 - jaxtyping shape symbol
     obs_noise_std: float,
     inflation_factor: float,
     localization_taper: Float[Array, "HW M"],
@@ -300,3 +300,4 @@ def initialize_ensemble(
     """
     noise = perturbation_std * jax.random.normal(key, (n_ens, *w0.shape), dtype=w0.dtype)
     return w0[None, :, :] + noise
+

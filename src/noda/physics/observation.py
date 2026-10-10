@@ -8,7 +8,7 @@ import jax.numpy as jnp
 from jaxtyping import Array, Float, Int
 
 
-def apply_H(state: Float[Array, "N H W"], sensor_indices: Int[Array, "M"]) -> Float[Array, "N M"]:
+def apply_H(state: Float[Array, "N H W"], sensor_indices: Int[Array, "M"]) -> Float[Array, "N M"]:  # noqa: F821 - jaxtyping shape symbol
     """Gather vorticity values at M fixed flattened (row-major) grid points.
 
     This is the only form of H used on the hot path (EnKF forecast/analysis,
@@ -18,10 +18,11 @@ def apply_H(state: Float[Array, "N H W"], sensor_indices: Int[Array, "M"]) -> Fl
     return state.reshape(n, h * w)[:, sensor_indices]
 
 
-def H_dense_matrix(grid_shape: tuple[int, int], sensor_indices: Int[Array, "M"]) -> Float[Array, "M HW"]:
+def H_dense_matrix(grid_shape: tuple[int, int], sensor_indices: Int[Array, "M"]) -> Float[Array, "M HW"]:  # noqa: F821 - jaxtyping shape symbol
     """Dense 0/1 (M, H*W) matrix form of H, for tests and gain-matrix sanity
     checks only. Never used on the hot path -- would materialize an unnecessary
     M x 16384 array during every EnKF cycle.
     """
     hw = grid_shape[0] * grid_shape[1]
     return jnp.eye(hw)[sensor_indices]
+

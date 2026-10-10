@@ -35,7 +35,7 @@ class PointwiseLinear(eqx.Module):
     """
 
     weight: Float[Array, "out_ch in_ch"]
-    bias: Float[Array, "out_ch"]
+    bias: Float[Array, "out_ch"]  # noqa: F821 - jaxtyping shape symbol
 
     def __init__(self, in_channels: int, out_channels: int, *, key: PRNGKeyArray):
         scale = 1.0 / in_channels**0.5
@@ -166,3 +166,4 @@ class FNO2d(eqx.Module):
         x = jax.nn.gelu(self.project1(x))
         delta = self.project2(x)[0]
         return w + delta
+

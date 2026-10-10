@@ -4,7 +4,12 @@ the whole EnKF design depends on. Not a full turbulence validation.
 import jax
 import jax.numpy as jnp
 
-from noda.physics.solver import PhysicsConfig, advance, make_ensemble_advance, make_step_fn
+from noda.physics.solver import (
+    PhysicsConfig,
+    advance,
+    make_ensemble_advance,
+    make_step_fn,
+)
 
 SMALL_CFG = PhysicsConfig(
     grid_size=32,
@@ -63,3 +68,4 @@ def test_ensemble_vmap_matches_loop():
     looped = jnp.stack([advance(members[i], step_hat, n_substeps=5) for i in range(members.shape[0])])
 
     assert jnp.allclose(vmapped, looped, atol=1e-5)
+

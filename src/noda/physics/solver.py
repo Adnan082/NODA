@@ -19,12 +19,11 @@ import functools
 
 import jax
 import jax.numpy as jnp
-from jaxtyping import Array, Complex, Float
-
 import jax_cfd.base.forcings as cfd_forcings
 import jax_cfd.base.grids as cfd_grids
 import jax_cfd.spectral.equations as spectral_equations
 import jax_cfd.spectral.time_stepping as time_stepping
+from jaxtyping import Array, Complex, Float
 
 
 @dataclasses.dataclass(frozen=True)
@@ -143,3 +142,4 @@ def forcing_hat(cfg: PhysicsConfig) -> Complex[Array, "H Wh"]:
     fy_hat = jnp.fft.rfft2(fy.data)
     kx, ky, _ = wavenumbers(cfg)
     return 1j * kx * fy_hat - 1j * ky * fx_hat
+

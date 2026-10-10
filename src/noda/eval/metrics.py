@@ -41,7 +41,7 @@ def crps_fair(ensemble: Float[Array, "N ..."], truth: Float[Array, "..."]) -> fl
     return float(jnp.mean(term1 - term2))
 
 
-def rank_histogram(ensemble: Float[Array, "N ..."], truth: Float[Array, "..."]) -> Int[Array, "N+1"]:
+def rank_histogram(ensemble: Float[Array, "N ..."], truth: Float[Array, "..."]) -> Int[Array, "N+1"]:  # noqa: F821 - jaxtyping shape symbol
     """Rank of truth among the sorted ensemble, per element, accumulated into a
     length-(N+1) histogram. U-shaped = underdispersive (overconfident, truth keeps
     landing outside the ensemble). Dome = overdispersive. Flat = calibrated.
@@ -52,3 +52,4 @@ def rank_histogram(ensemble: Float[Array, "N ..."], truth: Float[Array, "..."]) 
     n = ensemble.shape[0]
     ranks = jnp.sum(ensemble < truth[None, ...], axis=0)  # values in [0, N]
     return jnp.bincount(ranks.reshape(-1), length=n + 1)
+
